@@ -16,7 +16,6 @@ module Rhcf
         @to = to
       end
 
-
       def total(resolution_id=nil)
         accumulator={}
         points(resolution_id || better_resolution[:id]) do |data|
@@ -112,10 +111,13 @@ module Rhcf
       end
 
       def store(subject, event_point_hash, moment = Time.now)
+        resolutions = resolutions_of(moment)
+
         descend(subject) do |subject_path|
           event_point_hash.each do |event, point_value|
             descend(event) do |event_path|
-              resolutions_of(moment) do |resolution_name, resolution_value|
+              resolutions.each do |res|
+                resolution_name, resolution_value = *res
                 store_point_value(subject_path, event_path, resolution_name, resolution_value, point_value)
               end
             end
@@ -124,9 +126,10 @@ module Rhcf
       end
 
 
+
       def resolutions_of(moment)
-        @resolution_ids.each do |res_id|
-          yield res_id, resolution_value_at(moment, res_id)
+        @resolution_ids.collect do |res_id|
+          [res_id, resolution_value_at(moment, res_id)]
         end
       end
 
