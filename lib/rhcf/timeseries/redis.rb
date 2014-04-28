@@ -97,7 +97,18 @@ module Rhcf
       def initialize(options = {})
         @resolution_ids = options[:resolutions] || DEFAULT_RESOLUTIONS
         @max_points = options[:max_points] || DEFAULT_MAX_POINTS
-        @prefix=self.class.name
+        @prefix = options[:prefix] || self.class.name
+        @connection_to_use = nil
+      end
+
+      def on_connection(conn)
+        @connection_to_use = conn
+        yield self
+        @connection_to_use = nil
+      end
+
+      def redis_connection_to_use
+        @connection_to_use || redis_connection
       end
 
       def store(subject, event_point_hash, moment = Time.now)
@@ -141,7 +152,7 @@ module Rhcf
       def store_point_event( resolution_name, resolution_value, subject_path, event_path)
         key = [@prefix, 'event_set', resolution_name, resolution_value, subject_path].join(NAMESPACE_SEPARATOR)
         logger.debug("EVENTSET SADD #{key} -> #{event_path}")
-        redis_connection.sadd(key, event_path)
+        redis_connection_to_use.sadd(key, event_path)
       end
 
       def store_point_value( subject_path, event_path, resolution_name, resolution_value, point_value)
@@ -149,7 +160,7 @@ module Rhcf
 
         key = [@prefix, 'point' ,subject_path, event_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
         logger.debug("SETTING KEY #{key}")
-        redis_connection.incrby(key, point_value)
+        redis_connection_to_use.incrby(key, point_value)
       end
 
       def find(subject, from, to = Time.now)
@@ -162,27 +173,27 @@ module Rhcf
 
       def every_key(pattern=nil, &block)
         pattern = [@prefix, pattern,'*'].compact.join(NAMESPACE_SEPARATOR)
-        redis_connection.keys(pattern).each do |key|
+        redis_connection_to_use.keys(pattern).each do |key|
           yield key
         end
       end
 
       def delete_key(a_key)
         logger.debug("DELETING KEY #{a_key}")
-        redis_connection.del(a_key)
+        redis_connection_to_use.del(a_key)
       end
 
       def keys(*a_key)
         raise "GIVEUP"
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
         logger.debug("FINDING KEY #{a_key}")
-        redis_connection.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
+        redis_connection_to_use.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
       end
 
       def get(*a_key)
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
         logger.debug("GETTING KEY #{a_key}")
-        redis_connection.get(a_key)
+        redis_connection_to_use.get(a_key)
       end
 
 
@@ -201,7 +212,7 @@ module Rhcf
       def events_for_subject_on(subject, point, resolution_id)
         key = [@prefix, 'event_set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)
         logger.debug("EVENTSET SMEMBERS #{key}")
-        redis_connection.smembers(key)
+        redis_connection_to_use.smembers(key)
       end
     end
   end
