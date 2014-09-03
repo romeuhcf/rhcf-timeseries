@@ -75,17 +75,17 @@ module Rhcf
       inject :redis_connection
 
       RESOLUTIONS_MAP={
-          :ever => {span:Float::INFINITY, formatter: "ever"},
-          :year => {span: 365.days,formatter: "%Y"},
-          :week => {span: 1.week, formatter: "%Y-CW%w"},
-          :month => {span: 30.days, formatter: "%Y-%m"},
-          :day => {span: 1.day, formatter: "%Y-%m-%d"},
-          :hour => {span: 1.hour, formatter: "%Y-%m-%dT%H"},
-          :minute => {span: 1.minute, formatter: "%Y-%m-%dT%H:%M"},
-          :second => {span: 1, formatter: "%Y-%m-%dT%H:%M:%S"},
-          :"5seconds" => {span: 5.seconds, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:%M:") ,  time.to_i % 60/5, '*',5].join('') }},
-          :"5minutes" => {span: 5.minutes, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:") ,  (time.to_i/60) % 60/5, '*',5].join('') }},
-          :"15minutes" => {span: 15.minutes, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:") ,  (time.to_i/60) % 60/15, '*',15].join('') }}
+        :ever => {span:Float::INFINITY, formatter: "ever", ttl: (2 * 366).days},
+        :year => {span: 365.days,formatter: "%Y", ttl: (2 * 366).days},
+        :week => {span: 1.week, formatter: "%Y-CW%w", ttl: 90.days},
+        :month => {span: 30.days, formatter: "%Y-%m", ttl: 366.days},
+        :day => {span: 1.day, formatter: "%Y-%m-%d", ttl: 30.days},
+        :hour => {span: 1.hour, formatter: "%Y-%m-%dT%H", ttl: 24.hours},
+        :minute => {span: 1.minute, formatter: "%Y-%m-%dT%H:%M", ttl: 120.minutes},
+        :second => {span: 1, formatter: "%Y-%m-%dT%H:%M:%S", ttl: 1.hour},
+        :"5seconds" => {span: 5.seconds, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:%M:") ,  time.to_i % 60/5, '*',5].join('') }, ttl: 1.hour},
+        :"5minutes" => {span: 5.minutes, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:") ,  (time.to_i/60) % 60/5, '*',5].join('') }, ttl: 3.hour},
+        :"15minutes" => {span: 15.minutes, formatter: ->(time){ [time.strftime("%Y-%m-%dT%H:") ,  (time.to_i/60) % 60/15, '*',15].join('') }, ttl: 24.hours}
 
       }
       DEFAULT_RESOLUTIONS = RESOLUTIONS_MAP.keys
@@ -164,6 +164,7 @@ module Rhcf
         key = [@prefix, 'point' ,subject_path, event_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
         logger.debug("SETTING KEY #{key}")
         redis_connection_to_use.incrby(key, point_value)
+        redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
       end
 
       def find(subject, from, to = Time.now)

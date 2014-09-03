@@ -143,4 +143,24 @@ describe Rhcf::Timeseries::Redis do
 
 
   end
+
+  it "causes no stack overflow" do 
+     params_hash = {
+        sender_domain: 'example.com',
+        realm: 'realm',
+        destination_domain: 'lvh.me',
+        mail_server: 'aserver',
+         bind_interface: '11.1.1.11'
+     }
+
+     {
+            'sender_domain' => '%{sender_domain}',
+            'realm_and_sender_domain' => '%{realm}/%{sender_domain}',
+            'mail_server_and_interface' => '%{mail_server}/%{bind_interface}',
+            'realm_and_destination_domain' => '%{realm}/%{destination_domain}',
+            'destination_domain' => '%{destination_domain}'
+     }.each do |known, unknown|
+          subject.store(known % params_hash, {[(unknown % params_hash),'sent'].join('/') => 1})
+    end
+  end
 end
