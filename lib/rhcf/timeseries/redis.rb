@@ -141,87 +141,87 @@ module Rhcf
 
         time_resolution_formater = res_config[:formatter]
         case time_resolution_formater
-          when String
-            moment.strftime(time_resolution_formater)
-          when Proc
-            time_resolution_formater.call(moment)
-          else
-            raise ArgumentError, "Unexpected moment formater type #{time_resolution_formater.class}"
+        when String
+          moment.strftime(time_resolution_formater)
+        when Proc
+          time_resolution_formater.call(moment)
+        else
+          raise ArgumentError, "Unexpected moment formater type #{time_resolution_formater.class}"
         end
+      end
 
+      def descend(path, &block)
+        return if path.empty? or path == "."
+        block.call(path)
+        descend(File.dirname(path), &block)
+      end
 
-        def descend(path, &block)
-          return if path.empty? or path == "."
-          block.call(path)
-          descend(File.dirname(path), &block)
+      def store_point_event( resolution_name, resolution_value, subject_path, event_path)
+        key = [@prefix, 'event_set', resolution_name, resolution_value, subject_path].join(NAMESPACE_SEPARATOR)
+        logger.debug("EVENTSET SADD #{key} -> #{event_path}")
+        redis_connection_to_use.sadd(key, event_path)
+      end
+
+      def store_point_value( subject_path, event_path, resolution_name, resolution_value, point_value)
+        store_point_event(resolution_name, resolution_value, subject_path, event_path)
+
+        key = [@prefix, 'point' ,subject_path, event_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
+        logger.debug("SETTING KEY #{key}")
+        redis_connection_to_use.incrby(key, point_value)
+        redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
+      end
+
+      def find(subject, from, to = Time.now)
+        Rhcf::Timeseries::Result.new(subject, from, to, self)
+      end
+
+      def flush!
+        every_key{|a_key| delete_key(a_key)}
+      end
+
+      def every_key(pattern=nil, &block)
+        pattern = [@prefix, pattern,'*'].compact.join(NAMESPACE_SEPARATOR)
+        redis_connection_to_use.keys(pattern).each do |key|
+          yield key
         end
+      end
 
-        def store_point_event( resolution_name, resolution_value, subject_path, event_path)
-          key = [@prefix, 'event_set', resolution_name, resolution_value, subject_path].join(NAMESPACE_SEPARATOR)
-          logger.debug("EVENTSET SADD #{key} -> #{event_path}")
-          redis_connection_to_use.sadd(key, event_path)
+      def delete_key(a_key)
+        logger.debug("DELETING KEY #{a_key}")
+        redis_connection_to_use.del(a_key)
+      end
+
+      def keys(*a_key)
+        raise "GIVEUP"
+        a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
+        logger.debug("FINDING KEY #{a_key}")
+        redis_connection_to_use.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
+      end
+
+      def get(*a_key)
+        a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
+        logger.debug("GETTING KEY #{a_key}")
+        redis_connection_to_use.get(a_key)
+      end
+
+
+      def resolution(id)
+        res = RESOLUTIONS_MAP[id]
+        raise ArgumentError, "Invalid resolution name #{id} for this time series" if res.nil?
+        res.merge(:id => id)
+      end
+      def resolutions
+        @resolution_ids.collect do |id|
+          resolution(id)
         end
-
-        def store_point_value( subject_path, event_path, resolution_name, resolution_value, point_value)
-          store_point_event(resolution_name, resolution_value, subject_path, event_path)
-
-          key = [@prefix, 'point' ,subject_path, event_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
-          logger.debug("SETTING KEY #{key}")
-          redis_connection_to_use.incrby(key, point_value)
-          redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
-        end
-
-        def find(subject, from, to = Time.now)
-          Rhcf::Timeseries::Result.new(subject, from, to, self)
-        end
-
-        def flush!
-          every_key{|a_key| delete_key(a_key)}
-        end
-
-        def every_key(pattern=nil, &block)
-          pattern = [@prefix, pattern,'*'].compact.join(NAMESPACE_SEPARATOR)
-          redis_connection_to_use.keys(pattern).each do |key|
-            yield key
-          end
-        end
-
-        def delete_key(a_key)
-          logger.debug("DELETING KEY #{a_key}")
-          redis_connection_to_use.del(a_key)
-        end
-
-        def keys(*a_key)
-          raise "GIVEUP"
-          a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
-          logger.debug("FINDING KEY #{a_key}")
-          redis_connection_to_use.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
-        end
-
-        def get(*a_key)
-          a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
-          logger.debug("GETTING KEY #{a_key}")
-          redis_connection_to_use.get(a_key)
-        end
+      end
 
 
-        def resolution(id)
-          res = RESOLUTIONS_MAP[id]
-          raise ArgumentError, "Invalid resolution name #{id} for this time series" if res.nil?
-          res.merge(:id => id)
-        end
-        def resolutions
-          @resolution_ids.collect do |id|
-            resolution(id)
-          end
-        end
-
-
-        def events_for_subject_on(subject, point, resolution_id)
-          key = [@prefix, 'event_set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)
-          logger.debug("EVENTSET SMEMBERS #{key}")
-          redis_connection_to_use.smembers(key)
-        end
+      def events_for_subject_on(subject, point, resolution_id)
+        key = [@prefix, 'event_set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)
+        logger.debug("EVENTSET SMEMBERS #{key}")
+        redis_connection_to_use.smembers(key)
       end
     end
   end
+end
