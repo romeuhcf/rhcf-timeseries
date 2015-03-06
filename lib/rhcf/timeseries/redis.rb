@@ -1,6 +1,3 @@
-#require 'active_support/core_ext/numeric/time'
-
-require 'micon'
 require 'date'
 
 class Fixnum
@@ -42,7 +39,7 @@ module Rhcf
     class Result
       def initialize(subject, from, to, series)
         if from > to
-          raise ArgumentError, "Argument 'from' can not be bigger then 'to'"
+          fail ArgumentError, "Argument 'from' can not be bigger then 'to'"
         end
         @series = series
         @subject = subject
@@ -100,13 +97,12 @@ module Rhcf
         span = @to - @from
         resolutions = @series.resolutions.sort_by{|h| h[:span]}.reverse
         better = resolutions.find{|r| r[:span] < span / 5} || resolutions.last
+        return better
       end
     end
 
 
     class Redis
-      inject :logger
-      inject :redis_connection
 
       RESOLUTIONS_MAP={
         :ever => {span:Float::INFINITY, formatter: "ever", ttl: (2 * 366).days},
@@ -123,25 +119,26 @@ module Rhcf
 
       }
       DEFAULT_RESOLUTIONS = RESOLUTIONS_MAP.keys
-      DEFAULT_MAX_POINTS = 1_024
       NAMESPACE_SEPARATOR = '|'
 
+      attr_reader :logger
 
-      def initialize(options = {})
+      def initialize(logger, redis,  options = {})
         @resolution_ids = options[:resolutions] || DEFAULT_RESOLUTIONS
-        @max_points = options[:max_points] || DEFAULT_MAX_POINTS
         @prefix = options[:prefix] || self.class.name
-        @connection_to_use = nil
+        @logger = logger
+        @connection_to_use = redis
       end
 
       def on_connection(conn)
+        old_connection = @connection_to_use
         @connection_to_use = conn
         yield self
-        @connection_to_use = nil
+        @connection_to_use = old_connection
       end
 
       def redis_connection_to_use
-        @connection_to_use || redis_connection
+        @connection_to_use || fail("No redis connection given")
       end
 
       def store(subject, event_point_hash, moment = Time.now)
@@ -180,7 +177,7 @@ module Rhcf
         when Proc
           time_resolution_formater.call(moment)
         else
-          raise ArgumentError, "Unexpected moment formater type #{time_resolution_formater.class}"
+          fail ArgumentError, "Unexpected moment formater type #{time_resolution_formater.class}"
         end
       end
 
@@ -226,7 +223,7 @@ module Rhcf
       end
 
       def keys(*a_key)
-        raise "GIVEUP"
+        fail "GIVEUP"
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
         logger.debug("FINDING KEY #{a_key}")
         redis_connection_to_use.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
@@ -241,7 +238,7 @@ module Rhcf
 
       def resolution(id)
         res = RESOLUTIONS_MAP[id]
-        raise ArgumentError, "Invalid resolution name #{id} for this time series" if res.nil?
+        fail ArgumentError, "Invalid resolution name #{id} for this time series" if res.nil?
         res.merge(:id => id)
       end
       def resolutions
