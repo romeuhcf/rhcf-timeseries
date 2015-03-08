@@ -3,12 +3,11 @@ require 'timecop'
 require 'redis'
 require 'rhcf/timeseries/redis'
 require 'benchmark'
-require 'logger'
+require 'stackprof'
 
 describe Rhcf::Timeseries::Redis do
-  let(:null_logger){Logger.new('/dev/null')}
   let(:redis_connection){Redis.new}
-  subject{Rhcf::Timeseries::Redis.new(null_logger, redis_connection)}
+  subject{Rhcf::Timeseries::Redis.new(nil, redis_connection)}
 
   before(:each) do
     Timecop.return
@@ -21,9 +20,11 @@ describe Rhcf::Timeseries::Redis do
     start_time = Time.now
 
     bench = Benchmark.measure {
-      10000.times do
-        total +=1
-        subject.store("a", {"b" => 1} ) #, time)
+      profile = StackProf.run(mode: :cpu, out: '/tmp/stackprof-cpu-store.dump') do
+        10000.times do
+          total +=1
+          subject.store("a", {"b" => 1} ) #, time)
+        end
       end
     }
 

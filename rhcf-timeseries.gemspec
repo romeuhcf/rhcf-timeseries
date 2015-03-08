@@ -27,5 +27,6 @@ Gem::Specification.new do |spec|
   #spec.add_development_dependency "guard-bundler"
   #spec.add_development_dependency "simplecov"
   spec.add_development_dependency "timecop"
+  spec.add_development_dependency "stackprof"
   #spec.add_dependency "activesupport"
 end

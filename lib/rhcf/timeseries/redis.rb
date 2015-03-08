@@ -33,6 +33,17 @@ class Fixnum
   alias_method :year, :years
 end
 
+class NilLogger
+  def log(*args)
+
+  end
+
+  alias_method :warn, :log
+  alias_method :debug, :log
+  alias_method :info, :log
+  alias_method :error, :log
+end
+
 module Rhcf
   module Timeseries
 
@@ -126,7 +137,7 @@ module Rhcf
       def initialize(logger, redis,  options = {})
         @resolution_ids = options[:resolutions] || DEFAULT_RESOLUTIONS
         @prefix = options[:prefix] || self.class.name
-        @logger = logger
+        @logger = logger || NilLogger.new
         @connection_to_use = redis
       end
 
