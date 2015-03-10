@@ -105,10 +105,14 @@ module Rhcf
       end
 
       def better_resolution
-        span = @to - @from
+        span = @to.to_time - @from.to_time
+
         resolutions = @series.resolutions.sort_by{|h| h[:span]}.reverse
-        better = resolutions.find{|r| r[:span] < span / 5} || resolutions.last
-        return better
+        5.downto(1) do |div|
+          res = resolutions.find{|r| r[:span] < span / div }
+          return res if res
+        end
+        return nil
       end
     end
 
@@ -152,12 +156,12 @@ module Rhcf
         @connection_to_use || fail("No redis connection given")
       end
 
-      def store(subject, event_point_hash, moment = Time.now)
+      def store(subject, event_point_hash, moment = Time.now, descend_subject = true, descend_event = true)
         resolutions = resolutions_of(moment)
 
-        descend(subject) do |subject_path|
+        descend(subject, descend_subject) do |subject_path|
           event_point_hash.each do |event, point_value|
-            descend(event) do |event_path|
+            descend(event, descend_event) do |event_path|
               resolutions.each do |res|
                 resolution_name, resolution_value = *res
                 store_point_value(subject_path, event_path, resolution_name, resolution_value, point_value)
@@ -166,8 +170,6 @@ module Rhcf
           end
         end
       end
-
-
 
       def resolutions_of(moment)
         @resolution_ids.collect do |res_id|
@@ -192,10 +194,10 @@ module Rhcf
         end
       end
 
-      def descend(path, &block)
+      def descend(path, do_descend = true , &block)
         return if path.empty? or path == "."
         block.call(path)
-        descend(File.dirname(path), &block)
+        descend(File.dirname(path), do_descend, &block) if do_descend
       end
 
       def store_point_event( resolution_name, resolution_value, subject_path, event_path)
@@ -252,12 +254,10 @@ module Rhcf
         fail ArgumentError, "Invalid resolution name #{id} for this time series" if res.nil?
         res.merge(:id => id)
       end
-      def resolutions
-        @resolution_ids.collect do |id|
-          resolution(id)
-        end
-      end
 
+      def resolutions
+        @_resolutions ||= @resolution_ids.map { |id| resolution(id) }
+      end
 
       def events_for_subject_on(subject, point, resolution_id)
         key = [@prefix, 'event_set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)

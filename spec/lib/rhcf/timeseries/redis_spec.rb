@@ -14,36 +14,52 @@ describe Rhcf::Timeseries::Redis do
     subject.flush!
   end
 
-  it "should be fast to store and read" do
-    subject.flush!
-    total = 0
-    start_time = Time.now
+  describe 'descending' do
+    it "is be fast to store and read" do
+      total = 0
+      start_time = Time.now
 
-    bench = Benchmark.measure {
-      profile = StackProf.run(mode: :cpu, out: '/tmp/stackprof-cpu-store.dump') do
-        10000.times do
-          total +=1
-          subject.store("a", {"b" => 1} ) #, time)
+      bench = Benchmark.measure {
+        StackProf.run(mode: :cpu, out: p('/tmp/stackprof-cpu-store-descend.dump')) do
+          1000.times do
+            total +=1
+            subject.store("a/b", {"e/f" => 1} ) #, time)
+          end
         end
-      end
-    }
+      }
 
 
-    #pp    subject.find("a", start_time - 11100, Time.now + 11100).points(:second)
-    qbench = Benchmark.measure {
-      subject.find("a", start_time - 11100, Time.now + 11100).total['b'].to_i.should == total
-    }
+      Benchmark.measure {
+        expect(subject.find("a", start_time - 11100, Time.now + 11100).total['e'].to_i).to eq(total)
+      }
 
-    qbench_year = Benchmark.measure {
-      subject.find("a", start_time - 100000, Time.now + 100000).total(:year)['b'].to_i.should == total
-    }
+      Benchmark.measure {
+        expect(subject.find("a", start_time - 100000, Time.now + 100000).total(:year)['e/f'].to_i).to eq(total)
+      }
 
-    puts "Write speed %d points/seg | points:%d, duration:%0.3fs | query_time %0.3fs" % [speed = (1.0 * total / (bench.total + 0.00000001)), total, bench.total, qbench.total]
-    speed.should > 400
+      puts "Descend write speed %d points/seg | points:%d, duration:%0.3fs" % [speed = (1.0 * total / (bench.total + 0.00000001)), total, bench.total]
+      expect(speed).to be > 100
+    end
   end
 
+  describe 'not descending' do
+    it "is be fast to store and read" do
+      total = 0
+      bench = Benchmark.measure {
+        StackProf.run(mode: :cpu, out: p('/tmp/stackprof-cpu-store-nodescend.dump')) do
+          10000.times do
+            total +=1
+            subject.store("a/b/c/d", {"e/f/g/h" => 1}  , Time.now, false, false)
+          end
+        end
+      }
 
-  it "should be similar to redistat" do
+      puts "No descend write speed %d points/seg | points:%d, duration:%0.3fs" % [new_speed = (1.0 * total / (bench.total + 0.00000001)), total, bench.total]
+      expect(new_speed).to be > 300
+    end
+  end
+
+  it "is similar to redistat" do
     start_time = Time.parse("2000-01-01 00:00:00")
     Timecop.travel(start_time)
     subject.store("views/product/15", {"web/firefox/3" => 1})
@@ -68,7 +84,7 @@ describe Rhcf::Timeseries::Redis do
     Timecop.travel(15.minutes) #00:00:30
     subject.store("views/product/11", {"web/chrome/11"=> 2})
 
-    subject.find("views/product", start_time, start_time + 55.minutes).total(:ever).should == {
+    expect(subject.find("views/product", start_time, start_time + 55.minutes).total(:ever)).to  eq({
       "web" => 16.0,
       "web/chrome" => 6.0,
       "web/chrome/11" => 6.0,
@@ -77,9 +93,9 @@ describe Rhcf::Timeseries::Redis do
       "web/ie" => 7.0,
       "web/ie/5" => 2.0,
       "web/ie/6" => 5.0
-    }
+    })
 
-    subject.find("views/product", start_time, start_time + 55.minutes).total(:year).should == {
+    expect(subject.find("views/product", start_time, start_time + 55.minutes).total(:year)).to eq({
       "web" => 16.0,
       "web/chrome" => 6.0,
       "web/chrome/11" => 6.0,
@@ -88,59 +104,60 @@ describe Rhcf::Timeseries::Redis do
       "web/ie" => 7.0,
       "web/ie/5" => 2.0,
       "web/ie/6" => 5.0
-    }
+    })
 
-    subject.find("views/product", start_time, start_time + 55.minutes).total.should == {
+    expect( subject.find("views/product", start_time, start_time + 55.minutes).total ).to eq({
       'web' => 8,
       'web/firefox' => 3,
       'web/firefox/3' => 3,
       'web/ie' => 5,
       'web/ie/6' => 5,
-    }
+    })
 
-    subject.find("views/product/15", start_time, start_time + 55.minutes).points(:minute).should == [
+    expect(subject.find("views/product/15", start_time, start_time + 55.minutes).points(:minute)).to eq([
       {:moment=>"2000-01-01T00:00", :values=>{"web/firefox"=>1, "web/firefox/3"=>1, "web"=>1}},
       {:moment=>"2000-01-01T00:30", :values=>{"web"=>3, "web/ie/6"=>3, "web/ie"=>3}},
       {:moment=>"2000-01-01T00:45", :values=>{"web"=>2, "web/ie/6"=>2, "web/ie"=>2}}
-    ]
+    ])
 
-    subject.find("views/product/13", start_time, start_time + 55.minutes).points(:minute).should == [
+    expect(subject.find("views/product/13", start_time, start_time + 55.minutes).points(:minute)).to eq([
       {:moment=>"2000-01-01T00:15", :values=>{"web/firefox"=>2, "web/firefox/3"=>2, "web"=>2}},
-    ]
+    ])
 
-
-
-
-    subject.find("views/product", start_time, start_time + 55.minutes).points(:minute).should == [
+    expect(subject.find("views/product", start_time, start_time + 55.minutes).points(:minute)).to eq([
       {:moment=>"2000-01-01T00:00", :values=>{"web/firefox"=>1, "web/firefox/3"=>1, "web"=>1}},
       {:moment=>"2000-01-01T00:15", :values=>{"web/firefox"=>2, "web/firefox/3"=>2, "web"=>2}},
       {:moment=>"2000-01-01T00:30", :values=>{"web"=>3, "web/ie/6"=>3, "web/ie"=>3}},
       {:moment=>"2000-01-01T00:45", :values=>{"web"=>2, "web/ie/6"=>2, "web/ie"=>2}}
-    ]
+    ])
 
-    subject.find("views", start_time, start_time + 55.minutes).points(:minute).should == [
+    expect(subject.find("views", start_time, start_time + 55.minutes).points(:minute)).to eq([
       {:moment=>"2000-01-01T00:00", :values=>{"web/firefox"=>1, "web/firefox/3"=>1, "web"=>1}},
       {:moment=>"2000-01-01T00:15", :values=>{"web/firefox"=>2, "web/firefox/3"=>2, "web"=>2}},
       {:moment=>"2000-01-01T00:30", :values=>{"web"=>3, "web/ie/6"=>3, "web/ie"=>3}},
       {:moment=>"2000-01-01T00:45", :values=>{"web"=>2, "web/ie/6"=>2, "web/ie"=>2}}
-    ]
+    ])
 
-    subject.find("views", start_time).points(:hour).should == [{:moment=>"2000-01-01T00",
-                                                                :values=>
-    {"web/ie"=>5.0,
-     "web"=>8.0,
-     "web/firefox"=>3.0,
-     "web/ie/6"=>5.0,
-     "web/firefox/3"=>3.0}},
-     {:moment=>"2000-01-01T01",
-      :values=>
-    {"web/ie"=>2.0,
-     "web/chrome"=>6.0,
-     "web/chrome/11"=>6.0,
-     "web"=>8.0,
-     "web/ie/5"=>2.0}}]
-
-
+    expect(subject.find("views", start_time).points(:hour)).to eq([
+      {
+        :moment=>"2000-01-01T00",
+        :values=> {
+          "web/ie"=>5.0,
+          "web"=>8.0,
+          "web/firefox"=>3.0,
+          "web/ie/6"=>5.0,
+          "web/firefox/3"=>3.0}
+      },{
+        :moment=>"2000-01-01T01",
+        :values=>{
+          "web/ie"=>2.0,
+          "web/chrome"=>6.0,
+          "web/chrome/11"=>6.0,
+          "web"=>8.0,
+          "web/ie/5"=>2.0
+        }
+      }
+    ])
   end
 
   it "causes no stack overflow" do
