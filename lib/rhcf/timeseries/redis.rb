@@ -63,6 +63,7 @@ module Rhcf
       def total(resolution_id=nil)
         accumulator={}
         points(resolution_id || better_resolution[:id]) do |data|
+
           data[:values].each do |key, value|
             accumulator[key]||=0
             accumulator[key]+=value
@@ -75,17 +76,17 @@ module Rhcf
         list =[]
 
         point_range(resolution_id) do |point|
-          values = {}
 
-          @series.events_for_subject_on(@subject, point, resolution_id).each do |event|
-            if @filter
-              puts "Filtering with '#{@filter}' the value '#{event}'"
-              next unless @filter.match(event)
-            end
 
-            value = @series.get('point', @subject, event, resolution_id, point)
-            values[event] = value.to_i
-          end
+          events = @series.events_for_subject_on(@subject, point, resolution_id)
+          events = events.select{|event| @filter.match(event) } if @filter
+          values = @series.mget('point', @subject, events, resolution_id, point)
+
+          #          values = {}
+          #          events.each do |event|
+          #            value = @series.get('point', @subject, event, resolution_id, point)
+          #            values[event] = value.to_i
+          #          end
 
           next if values.empty?
           data =  {moment: point, values: values }
@@ -253,6 +254,18 @@ module Rhcf
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
         logger.debug("GETTING KEY #{a_key}")
         redis_connection_to_use.get(a_key)
+      end
+
+      def mget(k, s , es, r, p )
+        return {} if es.empty?
+        keys = es.map{|e| [@prefix, k,s,e,r,p].flatten.join(NAMESPACE_SEPARATOR)}
+        logger.debug("GETTING MULTIPLE KEYS #{keys.count}")
+        values = redis_connection_to_use.mget(*keys)
+        data = {}
+        keys.each_with_index do |key, index|
+          data[es[index]] = values[index].to_i
+        end
+        data
       end
 
 
