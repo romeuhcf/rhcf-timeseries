@@ -48,7 +48,7 @@ module Rhcf
   module Timeseries
 
     class Result
-      def initialize(subject, from, to, series)
+      def initialize(subject, from, to, series, filter = nil)
         if from > to
           fail ArgumentError, "Argument 'from' can not be bigger then 'to'"
         end
@@ -56,6 +56,8 @@ module Rhcf
         @subject = subject
         @from = from
         @to = to
+
+        @filter = filter
       end
 
       def total(resolution_id=nil)
@@ -76,6 +78,11 @@ module Rhcf
           values = {}
 
           @series.events_for_subject_on(@subject, point, resolution_id).each do |event|
+            if @filter
+              puts "Filtering with '#{@filter}' the value '#{event}'"
+              next unless @filter.match(event)
+            end
+
             value = @series.get('point', @subject, event, resolution_id, point)
             values[event] = value.to_i
           end
@@ -215,8 +222,8 @@ module Rhcf
         redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
       end
 
-      def find(subject, from, to = Time.now)
-        Rhcf::Timeseries::Result.new(subject, from, to, self)
+      def find(subject, from, to = Time.now, filter = nil)
+        Rhcf::Timeseries::Result.new(subject, from, to, self, filter)
       end
 
       def flush!
