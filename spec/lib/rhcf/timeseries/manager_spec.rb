@@ -162,8 +162,9 @@ describe Rhcf::Timeseries::Manager do
         }
       ])
     end
+    let(:filter) { Rhcf::Timeseries::Filter.new([:source, :browser], browser: 'firefox.*' )}
     it "can find with filter" do
-      expect(subject.find("views", start_time, start_time + 55.minutes, /firefox/).points(:minute)).to eq([
+      expect(subject.find("views", start_time, start_time + 55.minutes, filter).points(:minute)).to eq([
         {:moment=>"2000-01-01T00:00", :values=>{"web/firefox"=>1, "web/firefox/3"=>1}},
         {:moment=>"2000-01-01T00:15", :values=>{"web/firefox"=>2, "web/firefox/3"=>2}},
       ])

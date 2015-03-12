@@ -7,6 +7,27 @@ require 'rhcf/timeseries/redis_strategies'
 
 module Rhcf
   module Timeseries
+
+    class Filter
+      attr_reader :regex
+      def initialize(keys, values)
+        @keys   = keys
+        @values = values
+      end
+
+      def regex
+        @regex ||= Regexp.new('\A' + @keys.map{|key| @values[key]|| '.*'}.join('\/') + '\z')
+      end
+
+      def match?(value)
+        value =~ regex
+      end
+
+      def to_lua_pattern
+        @lua_pattern ||= @keys.map{|key| @values[key]|| '.*'}.join('/')
+      end
+    end
+
     class Manager
       DEFAULT_STRATEGY  = RedisHgetallStrategy
       attr_reader :prefix
