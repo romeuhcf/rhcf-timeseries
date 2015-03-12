@@ -1,21 +1,20 @@
 require 'spec_helper'
 require 'timecop'
 require 'redis'
-require 'rhcf/timeseries/redis'
+require 'rhcf/timeseries/manager'
 require 'benchmark'
 require 'stackprof'
 
-describe Rhcf::Timeseries::Redis do
-  let(:redis_connection){Redis.new}
-  subject{Rhcf::Timeseries::Redis.new(redis_connection)}
+describe Rhcf::Timeseries::Manager do
+  let(:redis){Redis.new}
+  subject{Rhcf::Timeseries::Manager.new(connection: redis)}
 
   before(:each) do
     Timecop.return
-    subject.flush!
   end
 
   describe 'descending' do
-    it "is be fast to store and read" do
+    it "is fast to store and read" do
       total = 0
       start_time = Time.now
 

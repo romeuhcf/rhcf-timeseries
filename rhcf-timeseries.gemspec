@@ -25,8 +25,9 @@ Gem::Specification.new do |spec|
   #spec.add_development_dependency "guard"
   #spec.add_development_dependency "guard-rspec"
   #spec.add_development_dependency "guard-bundler"
-  #spec.add_development_dependency "simplecov"
+  spec.add_development_dependency "simplecov"
   spec.add_development_dependency "timecop"
   spec.add_development_dependency "stackprof"
+  spec.add_development_dependency "database_cleaner"
   #spec.add_dependency "activesupport"
 end
