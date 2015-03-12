@@ -7,7 +7,7 @@ require 'stackprof'
 
 describe Rhcf::Timeseries::Redis do
   let(:redis_connection){Redis.new}
-  subject{Rhcf::Timeseries::Redis.new(nil, redis_connection)}
+  subject{Rhcf::Timeseries::Redis.new(redis_connection)}
 
   before(:each) do
     Timecop.return
@@ -21,7 +21,7 @@ describe Rhcf::Timeseries::Redis do
 
       bench = Benchmark.measure {
         StackProf.run(mode: :cpu, out: p('/tmp/stackprof-cpu-store-descend.dump')) do
-          100.times do
+          1000.times do
             total +=1
             subject.store("a/b", {"e/f" => 1} ) #, time)
           end
@@ -47,7 +47,7 @@ describe Rhcf::Timeseries::Redis do
       total = 0
       bench = Benchmark.measure {
         StackProf.run(mode: :cpu, out: p('/tmp/stackprof-cpu-store-nodescend.dump')) do
-          100.times do
+          1000.times do
             total +=1
             subject.store("a/b/c/d", {"e/f/g/h" => 1}  , Time.now, false, false)
           end

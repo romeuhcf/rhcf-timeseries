@@ -1,51 +1,12 @@
-require 'date'
-
-class Fixnum
-  def minutes
-    self * 60
-  end
-
-  def hours
-    self.minutes * 60
-  end
-
-  def days
-    self.hours * 24
-  end
-
-  def seconds
-    self
-  end
-
-  def weeks
-    self.days * 7
-  end
-
-  def years
-    self.days * 365
-  end
-
-  alias_method :day, :days
-  alias_method :week, :weeks
-  alias_method :hour, :hours
-  alias_method :second, :seconds
-  alias_method :minute, :minutes
-  alias_method :year, :years
-end
-
-class NilLogger
-  def log(*args)
-
-  end
-
-  alias_method :warn, :log
-  alias_method :debug, :log
-  alias_method :info, :log
-  alias_method :error, :log
+unless 1.respond_to?(:minute)
+  require_relative '../extensions/fixnum'
 end
 
 module Rhcf
   module Timeseries
+    STRATEGY          = :hgetall
+    EVENT_SET_TOKEN   = 'ES'
+    EVENT_POINT_TOKEN = 'P'
 
     class Result
       def initialize(subject, from, to, series, filter = nil)
@@ -77,16 +38,7 @@ module Rhcf
 
         point_range(resolution_id) do |point|
 
-
-          events = @series.events_for_subject_on(@subject, point, resolution_id)
-          events = events.select{|event| @filter.match(event) } if @filter
-          values = @series.mget('point', @subject, events, resolution_id, point)
-
-          #          values = {}
-          #          events.each do |event|
-          #            value = @series.get('point', @subject, event, resolution_id, point)
-          #            values[event] = value.to_i
-          #          end
+          values = @series.crunch_values(@subject, resolution_id, point, @filter)
 
           next if values.empty?
           data =  {moment: point, values: values }
@@ -144,12 +96,9 @@ module Rhcf
       DEFAULT_RESOLUTIONS = RESOLUTIONS_MAP.keys
       NAMESPACE_SEPARATOR = '|'
 
-      attr_reader :logger
-
-      def initialize(logger, redis,  options = {})
+      def initialize(redis,  options = {})
         @resolution_ids = options[:resolutions] || DEFAULT_RESOLUTIONS
-        @prefix = options[:prefix] || self.class.name
-        @logger = logger || NilLogger.new
+        @prefix = [(options[:prefix] || self.class.name) , STRATEGY.to_s[0,1]].join(NAMESPACE_SEPARATOR)
         @connection_to_use = redis
       end
 
@@ -209,17 +158,21 @@ module Rhcf
       end
 
       def store_point_event( resolution_name, resolution_value, subject_path, event_path)
-        key = [@prefix, 'event_set', resolution_name, resolution_value, subject_path].join(NAMESPACE_SEPARATOR)
-        logger.debug("EVENTSET SADD #{key} -> #{event_path}")
+        key = [@prefix, EVENT_SET_TOKEN, resolution_name, resolution_value, subject_path].join(NAMESPACE_SEPARATOR)
         redis_connection_to_use.sadd(key, event_path)
+        redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
       end
 
       def store_point_value( subject_path, event_path, resolution_name, resolution_value, point_value)
-        store_point_event(resolution_name, resolution_value, subject_path, event_path)
 
-        key = [@prefix, 'point' ,subject_path, event_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
-        logger.debug("SETTING KEY #{key}")
-        redis_connection_to_use.incrby(key, point_value)
+        key = [@prefix, EVENT_POINT_TOKEN ,subject_path, resolution_name, resolution_value].join(NAMESPACE_SEPARATOR)
+        if STRATEGY == :hgetall
+          redis_connection_to_use.hincrby(key, event_path, point_value)
+        else
+          store_point_event(resolution_name, resolution_value, subject_path, event_path)
+          key = [@prefix, EVENT_POINT_TOKEN ,subject_path, resolution_name, resolution_value, event_path].join(NAMESPACE_SEPARATOR)
+          redis_connection_to_use.incrby(key, point_value)
+        end
         redis_connection_to_use.expire(key, RESOLUTIONS_MAP[resolution_name][:ttl])
       end
 
@@ -239,27 +192,30 @@ module Rhcf
       end
 
       def delete_key(a_key)
-        logger.debug("DELETING KEY #{a_key}")
         redis_connection_to_use.del(a_key)
       end
 
       def keys(*a_key)
         fail "GIVEUP"
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
-        logger.debug("FINDING KEY #{a_key}")
         redis_connection_to_use.keys(a_key).collect{|k| k.split(NAMESPACE_SEPARATOR)[1,1000].join(NAMESPACE_SEPARATOR) }
       end
 
       def get(*a_key)
         a_key = [@prefix, a_key].flatten.join(NAMESPACE_SEPARATOR)
-        logger.debug("GETTING KEY #{a_key}")
         redis_connection_to_use.get(a_key)
       end
 
-      def mget(k, s , es, r, p )
+      def hgetall(k,s,r,p)
+        key  = [ @prefix, k,s,r,p].join(Redis::NAMESPACE_SEPARATOR)
+        redis_connection_to_use.hgetall(key).each_with_object({}) do |(k, value), hash|
+          hash[k] = value.to_i
+        end
+      end
+
+      def mget(k, s, r, p, es)
         return {} if es.empty?
-        keys = es.map{|e| [@prefix, k,s,e,r,p].flatten.join(NAMESPACE_SEPARATOR)}
-        logger.debug("GETTING MULTIPLE KEYS #{keys.count}")
+        keys = es.map{|e| [@prefix, k, s, r, p, e].flatten.join(NAMESPACE_SEPARATOR)}
         values = redis_connection_to_use.mget(*keys)
         data = {}
         keys.each_with_index do |key, index|
@@ -267,7 +223,6 @@ module Rhcf
         end
         data
       end
-
 
       def resolution(id)
         res = RESOLUTIONS_MAP[id]
@@ -280,10 +235,32 @@ module Rhcf
       end
 
       def events_for_subject_on(subject, point, resolution_id)
-        key = [@prefix, 'event_set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)
-        logger.debug("EVENTSET SMEMBERS #{key}")
+        key = [@prefix, 'set', resolution_id, point, subject].join(NAMESPACE_SEPARATOR)
         redis_connection_to_use.smembers(key)
       end
+
+      def crunch_values(subject, resolution_id, point, filter)
+        case STRATEGY
+        when :hgetall
+          values = hgetall(EVENT_POINT_TOKEN, subject, resolution_id, point)
+          values.reject!{|event, value| !filter.match(event) } if filter
+          values
+        when :mget
+          events = events_for_subject_on(subject, point, resolution_id)
+          events = events.select{|event| filter.match(event) } if filter
+          values = mget(EVENT_POINT_TOKEN, subject, resolution_id, point, events)
+        when :get
+          events = events_for_subject_on(subject, point, resolution_id)
+          events = events.select{|event| filter.match(event) } if filter
+          values = {}
+          events.each do |event|
+            value = get(EVENT_POINT_TOKEN, subject, resolution_id, point, event)
+            values[event] = value.to_i
+          end
+          values
+        end
+      end
+
     end
   end
 end
