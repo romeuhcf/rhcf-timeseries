@@ -1,4 +1,4 @@
-require "rhcf-timeseries/version"
+require "rhcf/timeseries/version"
 
 module Rhcf
   class Timeseries
