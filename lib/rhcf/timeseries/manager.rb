@@ -1,6 +1,7 @@
 unless 1.respond_to?(:minute)
   require_relative '../extensions/fixnum'
 end
+require 'rhcf/timeseries'
 require 'rhcf/timeseries/constants'
 require 'rhcf/timeseries/query'
 require 'rhcf/timeseries/redis_strategies'
