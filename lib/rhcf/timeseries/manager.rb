@@ -98,8 +98,8 @@ module Rhcf
         @strategy.store_point_value(self, subject_path, resolution_name, resolution_value, point_value, event_path)
       end
 
-      def find(subject, from, to = Time.now, filter = nil)
-        Rhcf::Timeseries::Query.new(subject, from, to, self, filter)
+      def find(subject, from, to = Time.now, filter = nil, limit = 1000)
+        Rhcf::Timeseries::Query.new(subject, from, to, self, filter, limit)
       end
 
       def resolution(id)
@@ -112,8 +112,8 @@ module Rhcf
         @_resolutions ||= @resolution_ids.map { |id| resolution(id) }
       end
 
-      def crunch_values(subject, resolution_id, point, filter)
-        @strategy.crunch_values(self, subject, resolution_id, point, filter)
+      def crunch_values(subject, resolution_id, point, filter, limit = 1000)
+        @strategy.crunch_values(self, subject, resolution_id, point, filter, limit)
       end
     end
   end

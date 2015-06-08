@@ -1,14 +1,16 @@
 module Rhcf
   module Timeseries
     class Query
-      def initialize(subject, from, to, series, filter = nil)
-        fail ArgumentError, "Argument 'from' can not be bigger then 'to'" if from > to
+      def initialize(subject, from, to, series, filter = nil, limit = 1000)
+        from, to = to, from if from > to
+
         @series = series
         @subject = subject
         @from = from
         @to = to
 
         @filter = filter
+        @limit = limit
       end
 
       def total(resolution_id=nil)
@@ -28,7 +30,7 @@ module Rhcf
 
         point_range(resolution_id) do |point|
 
-          values = @series.crunch_values(@subject, resolution_id, point, @filter)
+          values = @series.crunch_values(@subject, resolution_id, point, @filter, @limit)
 
           next if values.empty?
           data =  {moment: point, values: values }

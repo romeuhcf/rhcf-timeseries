@@ -1,5 +1,6 @@
 require 'redis'
 require 'rhcf/timeseries/manager'
+
 RSpec.shared_examples 'a valid strategy' do
   let(:redis){Redis.new}
   let(:manager) { Rhcf::Timeseries::Manager.new(connection: redis, strategy: described_class) }
