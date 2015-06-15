@@ -5,6 +5,26 @@ require 'rhcf/timeseries/manager'
 require 'benchmark'
 require 'stackprof'
 
+
+
+def generate_subjects(n_pages, n_edits)
+  edits = [].tap do  |me|
+    1.upto(n_edits) do |i|
+      me << "edit#{i}"
+    end
+  end
+  [].tap {|me| n_pages.times { me << [edits.sample,SecureRandom.hex].join('/') } }
+end
+
+def generate_pageviews(evts_count, subjects, mintime, maxtime)
+  pts = []
+  evts_count.times do
+    time = Time.at(rand( (mintime.to_i)..(maxtime.to_i)  ))
+    pts << [ subjects.sample ,time]
+  end
+  pts
+end
+
 describe Rhcf::Timeseries::Manager do
   let(:redis){Redis.new}
   subject{Rhcf::Timeseries::Manager.new(connection: redis)}
@@ -56,6 +76,53 @@ describe Rhcf::Timeseries::Manager do
       puts "No descend write speed %d points/seg | points:%d, duration:%0.3fs" % [new_speed = (1.0 * total / (bench.total + 0.00000001)), total, bench.total]
       expect(new_speed).to be > 300
     end
+  end
+
+  describe 'ranking' do
+    subject do
+      Rhcf::Timeseries::Manager.new(connection: redis,
+                                    resolutions: [:hour],
+                                    strategy: Rhcf::Timeseries::RedisMgetLuaStrategy)
+    end
+
+    let(:n_evts)  { 3000 }
+    let(:n_pages) { 15 }
+    let(:n_edits) { 3 }
+    let(:start_time) { Time.parse('2015-01-01')}
+    let(:end_time) { Time.parse('2015-01-02')}
+
+    let(:subjects){ generate_subjects(n_pages, n_edits) }
+    let(:points)  { generate_pageviews(n_evts, subjects, start_time, end_time)}
+
+    before do
+      points.each do |subject_and_time|
+        evt_subject, time = *subject_and_time
+        subject.store('pageview', {evt_subject => 1}, time, false, false)
+      end
+    end
+
+    let(:query) { subject.find("pageview", start_time, end_time) }
+
+    let(:top10_forca_bruta) {
+      acc = {}
+      points.each do |item|
+        s,_t = * item
+        acc[s] ||=0
+        acc[s] +=1
+
+      end
+      acc.sort_by{|i| i.last}.reverse[0,10]
+    }
+
+    it do
+      expect(points.count).to eq n_evts
+      expect(query.ranking(10).count).to eq 10
+      expect(query.ranking(10)).to eq top10_forca_bruta
+      expect(query.points(:hour).count).to eq 24
+      expect(redis.keys('*').count).to eq 24 + 24 * n_pages # ao infinito
+    end
+
+
   end
 
   describe "find and total" do

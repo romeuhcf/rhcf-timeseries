@@ -50,15 +50,15 @@ module Rhcf
         @connection_to_use || fail("No connection given")
       end
 
-      def store(subject, event_point_hash, moment = Time.now, descend_subject = true, descend_event = true)
+      def store(evt_path, subject_point_hash, moment = Time.now, descend_subject = true, descend_event = true)
         resolutions = resolutions_of(moment)
 
-        descend(subject, descend_subject) do |subject_path|
-          event_point_hash.each do |event, point_value|
-            descend(event, descend_event) do |event_path|
+        descend(evt_path, descend_event) do |event_path|
+          subject_point_hash.each do |subj_path, point_value|
+            descend(subj_path, descend_subject) do |subject_path|
               resolutions.each do |res|
                 resolution_name, resolution_value = *res
-                store_point_value(subject_path, resolution_name, resolution_value, point_value, event_path)
+                store_point_value(event_path, resolution_name, resolution_value, subject_path, point_value)
               end
             end
           end
@@ -98,8 +98,8 @@ module Rhcf
         @strategy.store_point_value(self, subject_path, resolution_name, resolution_value, point_value, event_path)
       end
 
-      def find(subject, from, to = Time.now, filter = nil, limit = 1000)
-        Rhcf::Timeseries::Query.new(subject, from, to, self, filter, limit)
+      def find(evt_filter, from, to = Time.now, subj_filter = nil)
+        Rhcf::Timeseries::Query.new(evt_filter, from, to, self, subj_filter)
       end
 
       def resolution(id)
@@ -112,8 +112,12 @@ module Rhcf
         @_resolutions ||= @resolution_ids.map { |id| resolution(id) }
       end
 
-      def crunch_values(subject, resolution_id, point, filter, limit = 1000)
-        @strategy.crunch_values(self, subject, resolution_id, point, filter, limit)
+      def ranking(evt_filter, resolution_id, points_on_range, subj_filter, limit)
+        @strategy.ranking(self, evt_filter, resolution_id, points_on_range, subj_filter, limit)
+      end
+
+      def crunch_values(evt_filter, resolution_id, point, subj_filter)
+        @strategy.crunch_values(self, evt_filter, resolution_id, point, subj_filter)
       end
     end
   end
