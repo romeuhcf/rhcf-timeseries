@@ -4,7 +4,7 @@ require 'redis'
 require 'rhcf/timeseries/manager'
 require 'benchmark'
 require 'stackprof'
-
+require 'securerandom'
 
 
 def generate_subjects(n_pages, n_edits)

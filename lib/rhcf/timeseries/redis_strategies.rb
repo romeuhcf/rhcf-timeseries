@@ -195,7 +195,7 @@ module Rhcf
               end
 
               table.sort(counter_tuples, function(a, b) return b[2] < a[2] end )
-              return counter_tuples
+              return {unpack(counter_tuples, 1, limit)}
             EOF
 
             smembers_matching = <<-EOF
