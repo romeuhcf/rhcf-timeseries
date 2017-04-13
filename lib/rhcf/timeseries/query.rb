@@ -12,13 +12,13 @@ module Rhcf
         @subj_filter = subj_filter
       end
 
-      def total(resolution_id=nil)
-        accumulator={}
+      def total(resolution_id = nil)
+        accumulator = {}
         points(resolution_id || better_resolution[:id]) do |data|
 
           data[:values].each do |key, value|
-            accumulator[key]||=0
-            accumulator[key]+=value
+            accumulator[key] ||= 0
+            accumulator[key] += value
           end
         end
         accumulator
@@ -31,14 +31,12 @@ module Rhcf
       end
 
       def points(resolution_id)
-        list =[]
-
+        list = []
         point_range(resolution_id) do |point|
-
           values = @series.crunch_values(@evt_filter, resolution_id, point, @subj_filter)
 
           next if values.empty?
-          data =  {moment: point, values: values }
+          data =  { moment: point, values: values }
           if block_given?
             yield data
           else
@@ -68,9 +66,9 @@ module Rhcf
       def better_resolution
         span = @to.to_time - @from.to_time
 
-        resolutions = @series.resolutions.sort_by{|h| h[:span]}.reverse
+        resolutions = @series.resolutions.sort_by { |h| h[:span] }.reverse
         5.downto(1) do |div|
-          res = resolutions.find{|r| r[:span] < span / div }
+          res = resolutions.find { |r| r[:span] < span / div }
           return res if res
         end
         return nil

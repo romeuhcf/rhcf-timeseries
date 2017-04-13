@@ -30,5 +30,3 @@ class Fixnum
   alias_method :minute, :minutes
   alias_method :year, :years
 end
-
-
