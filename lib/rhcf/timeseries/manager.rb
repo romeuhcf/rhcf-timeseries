@@ -60,7 +60,7 @@ module Rhcf
           resolution_name, resolution_value = *res
 
           subject_point_hash.each do |subj_path, point_value|
-              @strategy.store_descending(self, subj_path, descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value)
+            @strategy.store_descending(self, subj_path, descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value)
           end
         end
       end

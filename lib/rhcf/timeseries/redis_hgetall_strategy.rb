@@ -25,8 +25,6 @@ module Rhcf
           hash[_k] = value.to_i
         end
       end
-
-
     end
   end
 end

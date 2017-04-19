@@ -6,16 +6,12 @@ module Rhcf
       include PrefixCommons
       def id; 'SL'; end
 
-
-      def store_descending(manager, subj_path, descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value, expire=true)
+      def store_descending(manager, subj_path, descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value, expire = true)
         ttl = DEFAULT_RESOLUTIONS_MAP[resolution_name][:ttl] if expire
         data = manager.connection_to_use.evalsha(evalsha_for(manager, :store_descending),
                                                  keys: [subj_path],
                                                  argv: [descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value, ttl])
       end
-
-
-
 
       def ranking(manager, evt_filter, resolution_id, points_on_range, subj_filter, limit)
         point_prefix = point_prefix(manager, evt_filter, resolution_id)
@@ -143,7 +139,6 @@ module Rhcf
 
             #keys: [subj_path],
             #argv: [descend_path, evt_path, descend_event, resolution_name, resolution_value, point_value, ttl])
-
 
             store_descending = <<-EOF
 

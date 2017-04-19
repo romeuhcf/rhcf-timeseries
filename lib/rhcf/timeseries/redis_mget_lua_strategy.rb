@@ -3,7 +3,6 @@ module Rhcf
     class RedisMgetLuaStrategy < RedisStringBasedStrategy
       def id; 'ME'; end
 
-
       def ranking(manager, evt_filter, resolution_id, points_on_range, subj_filter, limit)
         point_prefix = point_prefix(manager, evt_filter, resolution_id)
         set_prefix = set_prefix(manager, evt_filter, resolution_id)
