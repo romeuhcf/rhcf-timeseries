@@ -1,6 +1,8 @@
 module Rhcf
   module Timeseries
     class RedisHgetallStrategy
+      include StrategyCommons
+
       def id
         'H'
       end
@@ -24,13 +26,7 @@ module Rhcf
         end
       end
 
-      def point_prefix(manager, evt_filter, resolution_id, time_point = nil, subj_path = nil)
-        [manager.prefix, EVENT_POINT_TOKEN, evt_filter, resolution_id, time_point, subj_path].compact.join(NAMESPACE_SEPARATOR)
-      end
 
-      def set_prefix(manager, evt_filter, resolution_id, time_point = nil)
-        [manager.prefix, EVENT_SET_TOKEN, evt_filter, resolution_id, time_point].compact.join(NAMESPACE_SEPARATOR)
-      end
     end
   end
 end

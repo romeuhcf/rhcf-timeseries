@@ -56,15 +56,11 @@ module Rhcf
       def store(evt_path, subject_point_hash, moment = Time.now.utc, descend_subject = true, descend_event = true)
         resolutions = resolutions_of(moment)
 
-        descend(evt_path, descend_event) do |event_path|
-          subject_point_hash.each do |subj_path, point_value|
-            descend(subj_path, descend_subject) do |subject_path|
+        resolutions.each do |res|
+          resolution_name, resolution_value = *res
 
-              resolutions.each do |res|
-                resolution_name, resolution_value = *res
-                store_point_value(event_path, resolution_name, resolution_value, subject_path, point_value)
-              end
-            end
+          subject_point_hash.each do |subj_path, point_value|
+              @strategy.store_descending(self, subj_path, descend_subject, evt_path, descend_event, resolution_name, resolution_value, point_value)
           end
         end
       end
@@ -91,16 +87,6 @@ module Rhcf
         else
           fail ArgumentError, "Unexpected moment formater type #{time_resolution_formater.class}"
         end
-      end
-
-      def descend(path, do_descend = true , &block)
-        return if path.empty? || (path == ".")
-        block.call(path)
-        descend(File.dirname(path), do_descend, &block) if do_descend
-      end
-
-      def store_point_value(subject_path, resolution_name, resolution_value, point_value, event_path)
-        @strategy.store_point_value(self, subject_path, resolution_name, resolution_value, point_value, event_path)
       end
 
       def resolution(id)

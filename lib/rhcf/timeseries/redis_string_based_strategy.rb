@@ -1,19 +1,14 @@
+require_relative 'strategy_commons'
 module Rhcf
   module Timeseries
     class RedisStringBasedStrategy
-      def point_prefix(manager, evt_filter, resolution_id, time_point = nil, subj_path = nil, event = nil)
-        [manager.prefix, EVENT_POINT_TOKEN, evt_filter, resolution_id, time_point, subj_path, event].compact.join(NAMESPACE_SEPARATOR)
-      end
-
-      def set_prefix(manager, evt_filter, resolution_id, time_point = nil)
-        [manager.prefix, EVENT_SET_TOKEN, evt_filter, resolution_id, time_point].compact.join(NAMESPACE_SEPARATOR)
-      end
+      include StrategyCommons
 
       def id
         fail 'AbstractStrategy'
       end
 
-      def store_point_value(manager, event_path, resolution_name, resolution_val, subj_path, increment, expire = false)
+      def store_point_value(manager, event_path, resolution_name, resolution_val, subj_path, increment, expire = true)
         set_key     = set_prefix(manager, event_path, resolution_name, resolution_val)
         counter_key = point_prefix(manager, event_path, resolution_name, resolution_val, subj_path)
         manager.connection_to_use.sadd(set_key, subj_path)

@@ -11,7 +11,7 @@ RSpec.shared_examples 'a valid strategy' do
 
     before { redis.flushall }
 
-    xit do
+    it do
       Timecop.travel(start_time)
       manager.store("views/product/15", "web/firefox" => 1)
 
